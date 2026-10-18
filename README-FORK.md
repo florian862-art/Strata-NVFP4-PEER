@@ -45,6 +45,9 @@ of every prompt chunk. But the two phases talk to GPU1 differently:
   default): GPU1's kernel writes its result rows zero-copy into a pinned
   host doorbell block. Small, latency-friendly transfers — and this path
   never uses CUDA peer access, so the knob below cannot slow it down.
+  A micro-bench at the real geometry (10 KB–2.6 MB row batches, 300-iter
+  mean) says a hypothetical P2P twin would be **1.7–3× slower** here, so
+  the host ring is not just the portable path, it is also the fast one.
 - **Prefill** moves ~84 MB chunks per layer and can route them either over
   BAR1 P2P (**5.5 GB/s**, real and working thanks to the custom modules)
   or over the pinned-host route (**14.3 GB/s**). Here bandwidth rules:
