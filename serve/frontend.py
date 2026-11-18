@@ -1428,11 +1428,28 @@ class OutputParser:
         tag has not arrived."""
         before = self.buf[i - 1] if i else self.line[-1:]
         if before not in ('"', "'", "`"):
+            context = self.buf[:i] if i >= 2 else self.line + self.buf[:i]
+            # (a) a TYPED escape ("`\n</think>\n\n`") means the model is writing ABOUT the tag.  The
+            # typed "\n" ends the text before the tag and its quote sits two characters further back;
+            # a real end is followed by a line break, never by a typed "\n".  Held while the character
+            # after the tag has not arrived, and ONLY in this shape, so every other end is decided
+            # exactly when the tag is complete (the Responses reasoning_tokens count depends on it).
+            if context[-2:] == "\\n" and any(c in ('"', "'", "`") for c in context[-4:]):
+                after = self.buf[i + len(THINK_END):]
+                if not after:
+                    return None
+                return after[0] == "\\" or after[0] not in "\r\n"
             return False
         after = self.buf[i + len(THINK_END):]
         if not after:
             return None
-        return after[0] not in "\r\n"
+        if after[0] == before:                   # the tag inside a pair of quotes
+            return True
+        # (b) #5605: only a quote that OPENS a quotation quotes the tag; a quote closing a
+        # sentence ("only." + tag) precedes the real end
+        context = self.buf[:i] if i >= 2 else self.line + self.buf[:i]
+        opens = context[-2:-1] in ("", " ", "\t", "\n", "(", "[", "{", ":")
+        return opens and after[0] not in "\r\n"
 
     def _stray_think_at(self) -> int:
         """#4077: where self.buf has a `</think>` at the start of a line, in the answer of a turn whose reasoning
